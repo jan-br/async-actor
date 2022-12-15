@@ -12,5 +12,5 @@ members = ["async-actor-proc"]
 tokio = { version = "1.23.0", features=["full"] }
 async-trait = "0.1.59"
 pin-project = "1.0.12"
-better-than-actix-macro = {path= "async-actor-proc" }
+async-actor-proc = {path= "async-actor-proc" }
 const-assert = "1.0.0"
