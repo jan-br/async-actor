@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use async_actor_proc::{actor, actor_handle, actor_impl};
 use async_actor::system::{Component, ComponentMessageHandler, ComponentHandle};
 
@@ -12,10 +13,11 @@ async fn main() {
   println!("Modified: {}", some_struct.is_modified().await);
 }
 
+
 #[actor]
 #[derive(Default)]
 pub struct SomeStruct {
-  modified: bool
+  modified: bool,
 }
 
 #[actor_impl]

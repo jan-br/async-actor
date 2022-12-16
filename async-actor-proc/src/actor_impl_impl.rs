@@ -57,7 +57,7 @@ fn create_module(original: &mut ItemImpl) -> TokenStream2 {
       )*
     }
   } else {
-    todo!()
+    todo!("b")
   }
 }
 
@@ -81,16 +81,33 @@ fn create_params(original: &ItemImpl, functions: Vec<&ImplItemMethod>) -> Vec<It
         }
       }).collect::<Vec<_>>();
 
+      let generics = &function.sig.generics;
+      let where_clause = &generics.where_clause;
 
+      let phantom_data = if generics.params.is_empty() {
+        quote!()
+      }else if generics.type_params().collect::<Vec<_>>().is_empty() {
+        let lifetimes = generics.lifetimes().collect::<Vec<_>>();
+
+        quote! {
+          _phantom: core::marker::PhantomData::<(#(&#lifetimes (),)*)>,
+        }
+      } else {
+        let generic_params = &generics.params.iter().collect::<Vec<_>>();
+        quote! {
+          _phantom: core::marker::PhantomData <(#(#generic_params,)*)>,
+        }
+      };
       syn::parse2(quote! {
-      pub struct #params_name {
+      pub struct #params_name #generics #where_clause {
+        #phantom_data
         #(#inputs
         )*
       }
     }).unwrap()
     }).collect()
   } else {
-    todo!()
+    todo!("c")
   }
 }
 
@@ -120,18 +137,30 @@ fn create_handlers(original: &ItemImpl, functions: Vec<(ImplItemMethod, Block)>)
         }
       }).collect::<Vec<_>>();
 
-      syn::parse2(quote! {
+      let params_generics = &function.sig.generics.params.clone().into_iter().collect::<Vec<_>>();
+
+      let params_generics_with_separator = if params_generics.is_empty() {
+        quote!()
+      } else {
+        quote!(:: <#(#params_generics,)*>)
+      };
+      let where_clause = &function.sig.generics.where_clause.clone();
+
+
+      let x = quote! {
         #[async_trait::async_trait]
-        impl ComponentMessageHandler<#params_name> for #type_path {
+        impl <#(#params_generics,)*> ComponentMessageHandler<#params_name <#(#params_generics,)*>> for #type_path #where_clause {
           type Answer = #return_value;
 
-          async fn handle(&mut self, request: #params_name, wrapper: Self::HandleWrapper) -> Self::Answer {
-            let #params_name { #(#param_names,)* } = request;
+          async fn handle(&mut self, request: #params_name #params_generics_with_separator, wrapper: Self::HandleWrapper) -> Self::Answer {
+            let #params_name #params_generics_with_separator { #(#param_names,)*.. } = request;
             #old_block
           }
 
         }
-      }).unwrap()
+      };
+      println!("{}", &x);
+      syn::parse2( x).unwrap()
     }).collect()
   } else {
     panic!("Expected a type path");
@@ -145,17 +174,17 @@ fn modify_functions(original: &mut ItemImpl) -> Vec<(ImplItemMethod, Block)> {
 
     let mut functions = Vec::new();
     for item in &mut original.items {
-      if let ImplItem::Method(method) = item {
+      if let ImplItem::Method(function) = item {
         let mut found_attribute = false;
-        for segment in &method.attrs.iter().flat_map(|attr| attr.path.segments.iter()).collect::<Vec<_>>() {
+        for segment in &function.attrs.iter().flat_map(|attr| attr.path.segments.iter()).collect::<Vec<_>>() {
           if segment.ident == "actor_handle" {
             found_attribute = true;
           }
         }
         if found_attribute {
-          let function_name = method.sig.ident.clone();
+          let function_name = function.sig.ident.clone();
           let function_name_escaped = format!("{}", function_name);
-          let param_names = method.sig.inputs.iter().filter_map(|input| {
+          let param_names = function.sig.inputs.iter().filter_map(|input| {
             if let FnArg::Typed(input) = input {
               if let Pat::Ident(ident) = input.pat.as_ref() {
                 Some(ident.ident.clone())
@@ -167,27 +196,41 @@ fn modify_functions(original: &mut ItemImpl) -> Vec<(ImplItemMethod, Block)> {
             }
           }).collect::<Vec<_>>();
           let params_name = format_ident!("{}{}Params", original_name, convert_case::Casing::to_case(&function_name.clone().to_string(), convert_case::Case::UpperCamel));
-
-          if let FnArg::Receiver(val) = method.sig.inputs.first_mut().expect("Self reference is required") {
+          let generics = &function.sig.generics;
+          let generics_with_separator = if generics.params.is_empty() {
+            quote!()
+          } else {
+            quote!(:: #generics)
+          };
+          if let FnArg::Receiver(val) = function.sig.inputs.first_mut().expect("Self reference is required") {
             val.mutability = None
+          } else {
+            todo!("yay")
+          }
+          let phantom_data = if generics.params.is_empty() {
+            quote!()
           }else{
-            todo!()
-          }
-          let old_block = replace(&mut method.block, syn::parse2(quote! {
-          {
-            self.inner.dispatch(#params_name {
-              #(#param_names
-              ),*
-            }).await
-          }
-        }).unwrap());
-          functions.push((method.clone(), old_block));
+            quote!{
+              _phantom: Default::default(),
+            }
+          };
+
+          let old_block = replace(&mut function.block, syn::parse2(quote! {
+            {
+              self.inner.dispatch(#params_name #generics_with_separator {
+                #phantom_data
+                #(#param_names
+                ),*
+              }).await
+            }
+          }).unwrap());
+          functions.push((function.clone(), old_block));
         }
       }
     }
     functions
   } else {
-    todo!()
+    todo!("a")
   }
 }
 
