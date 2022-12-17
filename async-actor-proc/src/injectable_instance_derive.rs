@@ -33,7 +33,7 @@ fn expand(mut original: &ItemStruct) -> Result<TokenStream2> {
     impl #generic_definition async_actor::inject::injectable_instance::InjectableInstance for #handle_name #generic_definition #generic_constraints{
       type Inner = #original_name #generic_definition;
 
-      fn create_instance(injector: Injector) -> core::pin::Pin<Box<dyn core::future::Future<Output=std::boxed::Box<Self>> + core::marker::Send + core::marker::Sync>> {
+      fn create_instance(injector: async_actor::inject::Injector) -> core::pin::Pin<Box<dyn core::future::Future<Output=std::boxed::Box<Self>> + core::marker::Send + core::marker::Sync>> {
         std::boxed::Box::pin(async move {
           Box::new(#instantiation.start())
         })
