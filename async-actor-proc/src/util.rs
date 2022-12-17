@@ -148,7 +148,7 @@ pub fn format_injectable_struct_instantiation(original: &ItemStruct, ty: &TokenS
   let field_inject_initialization = format_field_initialization(injectable_fields, |field| {
     let field_name = &field.ident;
     let field_type = &field.ty;
-    quote!(#field_name: injector.get::<<#field_type as Singleton>::Inner>().await)
+    quote!(#field_name: injector.get::<<#field_type as async_actor::inject::injectable_instance::InjectableInstance>::Inner>().await)
   });
 
   let mut field_default_initializations = if defaults_allowed {

@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 
-mod singleton_derive;
+mod injectable_instance_derive;
 mod inject_impl;
 mod component_derive;
 mod util;
@@ -13,9 +13,9 @@ pub fn actor(args: TokenStream, input: TokenStream) -> TokenStream {
   actor_proc::actor_proc(args, input)
 }
 
-#[proc_macro_derive(Singleton, attributes(inject))]
-pub fn singleton(input: TokenStream) -> TokenStream {
-  singleton_derive::singleton_derive(input)
+#[proc_macro_derive(Injectable, attributes(inject))]
+pub fn injectable_instance(input: TokenStream) -> TokenStream {
+  injectable_instance_derive::injectable_instance_derive(input)
 }
 
 #[proc_macro_derive(AssistedInstantiable, attributes(inject))]

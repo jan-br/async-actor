@@ -4,22 +4,22 @@ use std::future::Future;
 use std::ops::Deref;
 use std::sync::Arc;
 use async_lock::{RwLock, RwLockUpgradableReadGuard};
-use async_actor_proc::{actor, Component, Singleton};
+use async_actor_proc::{actor, Component, Injectable};
 use crate as async_actor;
-use crate::inject::singleton::Singleton;
+use crate::inject::injectable_instance::InjectableInstance;
 use crate::system::{Component, ComponentMessageHandler, ComponentHandle, HasHandleWrapper};
 use crate::util::lazy::Lazy;
 
-pub mod singleton;
+pub mod injectable_instance;
 pub mod assisted_inject;
 
 #[derive(Default)]
 pub struct InjectorInner {
-  singletons: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-  loading_singletons: HashMap<TypeId, String>,
+  injected_instances: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+  loading_injected_instances: HashMap<TypeId, String>,
 }
 
-#[derive(Default, Clone, Component, Singleton)]
+#[derive(Default, Clone, Component, Injectable)]
 pub struct Injector {
   inner: Arc<RwLock<InjectorInner>>,
 }
@@ -28,18 +28,18 @@ pub struct Injector {
 impl Injector {
   pub async fn get<C>(&self) -> C::HandleWrapper where
     C: Component + Sync,
-    C::HandleWrapper: Singleton<Inner=C>
+    C::HandleWrapper: InjectableInstance<Inner=C>
   {
     let type_id = TypeId::of::<C::HandleWrapper>();
 
     let inner_guard = self.inner.upgradable_read().await;
-    match inner_guard.singletons.get(&type_id) {
+    match inner_guard.injected_instances.get(&type_id) {
       None => {
         let mut inner_guard = RwLockUpgradableReadGuard::upgrade(inner_guard).await;
-        if inner_guard.loading_singletons.insert(type_id, type_name::<C>().to_string()).is_some() {
-          panic!("detected circular reference. {:?}", &inner_guard.loading_singletons.values());
+        if inner_guard.loading_injected_instances.insert(type_id, type_name::<C>().to_string()).is_some() {
+          panic!("detected circular reference. {:?}", &inner_guard.loading_injected_instances.values());
         }
-        let new_singleton: Lazy<<<<C as HasHandleWrapper>::HandleWrapper as Singleton>::Inner as HasHandleWrapper>::HandleWrapper> = Lazy::run({
+        let new_injected_instance: Lazy<<<<C as HasHandleWrapper>::HandleWrapper as InjectableInstance>::Inner as HasHandleWrapper>::HandleWrapper> = Lazy::run({
           let injector = self.clone();
           async move {
             let inner = C::HandleWrapper::create_instance(injector.clone()).await;
@@ -48,18 +48,18 @@ impl Injector {
           }
         });
 
-        inner_guard.singletons.insert(type_id, Arc::new(new_singleton.clone()));
+        inner_guard.injected_instances.insert(type_id, Arc::new(new_injected_instance.clone()));
         drop(inner_guard);
-        let new_singleton = new_singleton.get().await;
-        self.inner.write().await.loading_singletons.remove(&type_id);
-        new_singleton
+        let new_injected_instance = new_injected_instance.get().await;
+        self.inner.write().await.loading_injected_instances.remove(&type_id);
+        new_injected_instance
       }
 
-      Some(singleton) => {
-        if self.inner.read().await.loading_singletons.contains_key(&type_id) {
-          panic!("detected circular reference. {:?}", &inner_guard.loading_singletons.values());
+      Some(injected_instance) => {
+        if self.inner.read().await.loading_injected_instances.contains_key(&type_id) {
+          panic!("detected circular reference. {:?}", &inner_guard.loading_injected_instances.values());
         }
-        singleton.clone().deref().downcast_ref::<Lazy<C::HandleWrapper>>().unwrap().get().await
+        injected_instance.clone().deref().downcast_ref::<Lazy<C::HandleWrapper>>().unwrap().get().await
       }
     }
   }

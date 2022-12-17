@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use proc_macro2::{TokenStream as TokenStream2};
 use crate::util::{format_generic_constraints, format_generic_definition, format_handle_name, format_injectable_struct_instantiation, format_name};
 
-pub fn singleton_derive(input: TokenStream) -> TokenStream {
+pub fn injectable_instance_derive(input: TokenStream) -> TokenStream {
   let input = TokenStream2::from(input);
   let result = match parse_and_expand(input.clone()) {
     Ok(token_stream) => token_stream,
@@ -30,7 +30,7 @@ fn expand(mut original: &ItemStruct) -> Result<TokenStream2> {
   let instantiation = format_injectable_struct_instantiation(&original, &quote!(Self::Inner), true, None);
 
   Ok(quote! {
-    impl #generic_definition async_actor::inject::singleton::Singleton for #handle_name #generic_definition #generic_constraints{
+    impl #generic_definition async_actor::inject::injectable_instance::InjectableInstance for #handle_name #generic_definition #generic_constraints{
       type Inner = #original_name #generic_definition;
 
       fn create_instance(injector: Injector) -> core::pin::Pin<Box<dyn core::future::Future<Output=Self::Inner> + core::marker::Send + core::marker::Sync>> {

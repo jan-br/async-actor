@@ -1,8 +1,7 @@
 use async_actor::inject::Injector;
 use async_actor::inject::assisted_inject::AssistedInstantiable;
-use async_actor::inject::singleton::Singleton;
 use async_actor::system::Component;
-use async_actor_proc::{Component, actor, inject, Singleton, assisted_factory, AssistedInstantiable};
+use async_actor_proc::{Component, actor, inject, Injectable, assisted_factory, AssistedInstantiable};
 
 #[tokio::main]
 async fn main() {
@@ -12,7 +11,7 @@ async fn main() {
 }
 
 
-#[derive(Component, Singleton)]
+#[derive(Component, Injectable)]
 pub struct SomeService {
   #[inject] factory: SomeFactoryImplHandle,
 }
@@ -24,7 +23,7 @@ impl SomeService {
   }
 }
 
-#[derive(Component, Singleton)]
+#[derive(Component, Injectable)]
 pub struct SomePrintService {}
 
 #[actor]

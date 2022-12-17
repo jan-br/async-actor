@@ -49,7 +49,7 @@ fn create_factory_handle(original: &mut ItemTrait) -> Result<ItemStruct> {
   let generic_constraints = format_generic_constraints(&original.generics);
 
   syn::parse2(quote! {
-    #[derive(Clone, async_actor_proc::Component, async_actor_proc::Singleton)]
+    #[derive(Clone, async_actor_proc::Component, async_actor_proc::Injectable)]
     pub struct #impl_name #generic_definition #generic_constraints {
       #[inject] injector: async_actor::inject::InjectorHandle
     }

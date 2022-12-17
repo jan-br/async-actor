@@ -1,6 +1,5 @@
 use async_actor::inject::{Injector};
-use async_actor::inject::singleton::{Singleton};
-use async_actor_proc::{actor, Component, inject, Singleton};
+use async_actor_proc::{actor, Component, inject, Injectable};
 
 
 #[tokio::main]
@@ -13,7 +12,7 @@ async fn main() {
   entry_point.run().await;
 }
 
-#[derive(Component, Singleton)]
+#[derive(Component, Injectable)]
 pub struct EntryPoint {
   #[inject] user_service: UserServiceHandle,
 }
@@ -28,7 +27,7 @@ impl EntryPoint {
   }
 }
 
-#[derive(Component, Singleton)]
+#[derive(Component, Injectable)]
 pub struct UserService {
   #[inject] database_service: DatabaseServiceHandle,
 }
@@ -41,7 +40,7 @@ impl UserService {
 }
 
 
-#[derive(Component, Singleton)]
+#[derive(Component, Injectable)]
 pub struct DatabaseService {
   connected: bool,
 }
