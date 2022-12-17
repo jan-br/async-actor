@@ -1,17 +1,17 @@
 use std::any::{Any, type_name, TypeId};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::future::Future;
-use std::mem::MaybeUninit;
 use std::ops::Deref;
-use std::pin::Pin;
 use std::sync::Arc;
 use async_lock::{RwLock, RwLockUpgradableReadGuard};
+use async_actor_proc::{actor, Component, Singleton};
+use crate as async_actor;
 use crate::inject::singleton::Singleton;
-use crate::system::{Component, ComponentMessageHandler, ComponentHandle};
-use async_actor_proc::{actor, actor_handle, actor_impl};
+use crate::system::{Component, ComponentMessageHandler, ComponentHandle, HasHandleWrapper};
 use crate::util::lazy::Lazy;
 
 pub mod singleton;
+pub mod assisted_inject;
 
 #[derive(Default)]
 pub struct InjectorInner {
@@ -19,15 +19,16 @@ pub struct InjectorInner {
   loading_singletons: HashMap<TypeId, String>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Component, Singleton)]
 pub struct Injector {
   inner: Arc<RwLock<InjectorInner>>,
 }
 
+#[actor]
 impl Injector {
   pub async fn get<C>(&self) -> C::HandleWrapper where
     C: Component + Sync,
-    C::HandleWrapper: Singleton<Component=C>
+    C::HandleWrapper: Singleton<Inner=C>
   {
     let type_id = TypeId::of::<C::HandleWrapper>();
 
@@ -38,10 +39,10 @@ impl Injector {
         if inner_guard.loading_singletons.insert(type_id, type_name::<C>().to_string()).is_some() {
           panic!("detected circular reference. {:?}", &inner_guard.loading_singletons.values());
         }
-        let new_singleton: Lazy<<<<C as Component>::HandleWrapper as Singleton>::Component as Component>::HandleWrapper> = Lazy::run({
+        let new_singleton: Lazy<<<<C as HasHandleWrapper>::HandleWrapper as Singleton>::Inner as HasHandleWrapper>::HandleWrapper> = Lazy::run({
           let injector = self.clone();
           async move {
-            let inner = C::HandleWrapper::create(injector.clone()).await;
+            let inner = C::HandleWrapper::create_instance(injector.clone()).await;
             let handle = inner.start();
             handle
           }

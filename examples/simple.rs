@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
-use async_actor_proc::{actor, actor_handle, actor_impl};
-use async_actor::system::{Component, ComponentMessageHandler, ComponentHandle};
+use async_actor_proc::{actor, Component};
+use async_actor::system::{Component};
 
 #[tokio::main]
 async fn main() {
@@ -14,21 +13,18 @@ async fn main() {
 }
 
 
-#[actor]
-#[derive(Default)]
+#[derive(Default, Component)]
 pub struct SomeStruct {
   modified: bool,
 }
 
-#[actor_impl]
+#[actor]
 impl SomeStruct {
-  #[actor_handle]
   pub async fn modify(&mut self, value: bool) {
     self.modified = value;
   }
 
-  #[actor_handle]
-  pub async fn is_modified(&mut self) -> bool {
+  pub fn is_modified(&mut self) -> bool {
     self.modified
   }
 }

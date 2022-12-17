@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
 
-pub fn inect(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn inject(args: TokenStream, input: TokenStream) -> TokenStream {
   input
 }

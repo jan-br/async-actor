@@ -9,9 +9,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 pub struct SendVoidPtr(pub *mut std::ffi::c_void);
 unsafe impl Send for SendVoidPtr {}
 
-#[async_trait::async_trait]
-pub trait Component: Sized + Send + 'static {
+pub trait HasHandleWrapper {
   type HandleWrapper: Clone + Send + 'static;
+}
+
+#[async_trait::async_trait]
+pub trait Component: HasHandleWrapper + Sized + Send + 'static {
 
   async fn on_start(&mut self, _wrapper: Self::HandleWrapper) {}
 
@@ -33,7 +36,7 @@ pub trait Component: Sized + Send + 'static {
 
 type PinnedFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 type ComponentMessageDispatchFn<C> =
-fn(&mut C, SendVoidPtr, <C as Component>::HandleWrapper) -> PinnedFuture<'_>;
+fn(&mut C, SendVoidPtr, <C as HasHandleWrapper>::HandleWrapper) -> PinnedFuture<'_>;
 
 #[async_trait::async_trait]
 pub trait ComponentMessageHandler<R>

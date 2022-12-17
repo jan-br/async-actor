@@ -1,9 +1,6 @@
-use std::future::Future;
-use std::pin::Pin;
 use async_actor::inject::{Injector};
 use async_actor::inject::singleton::{Singleton};
-use async_actor_proc::{actor, actor_handle, actor_impl, inject, Singleton};
-use async_actor::system::{Component, ComponentMessageHandler, ComponentHandle};
+use async_actor_proc::{actor, Component, inject, Singleton};
 
 
 #[tokio::main]
@@ -16,15 +13,13 @@ async fn main() {
   entry_point.run().await;
 }
 
-#[actor]
-#[derive(Singleton)]
+#[derive(Component, Singleton)]
 pub struct EntryPoint {
   #[inject] user_service: UserServiceHandle,
 }
 
-#[actor_impl]
+#[actor]
 impl EntryPoint {
-  #[actor_handle]
   pub async fn run(&mut self) {
     // Notify UserService actor about joined user Jan
     self.user_service.user_joined("Jan".to_string()).await;
@@ -33,47 +28,40 @@ impl EntryPoint {
   }
 }
 
-#[actor]
-#[derive(Singleton)]
+#[derive(Component, Singleton)]
 pub struct UserService {
   #[inject] database_service: DatabaseServiceHandle,
 }
 
-#[actor_impl]
+#[actor]
 impl UserService {
-  #[actor_handle]
   pub async fn user_joined(&mut self, user: String) {
     self.database_service.save_user(user).await;
   }
 }
 
 
-#[actor]
-#[derive(Singleton)]
+#[derive(Component, Singleton)]
 pub struct DatabaseService {
   connected: bool,
 }
 
-#[actor_impl]
+#[actor]
 impl DatabaseService {
-  #[actor_handle]
   pub async fn establish_connection(&mut self) {
     self.connected = true;
     println!("Database connection successfully established");
   }
 
-  #[actor_handle]
   pub async fn is_connected(&mut self) -> bool{
     self.connected
   }
 
-  #[actor_handle]
   pub async fn save_user(&mut self, user: String) {
     // Ensure service is connected to database
-    // ** Access the current actor handle with hidden variable `wrapper` **
-    if !wrapper.is_connected().await {
+    if !self.is_connected().await {
       println!("Database connection not yet established.. Starting connection process..");
-      wrapper.establish_connection().await;
+      self.establish_connection().await;
     } else {
       println!("Database connection already established");
     }
