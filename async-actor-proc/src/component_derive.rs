@@ -24,8 +24,8 @@ fn parse(input: TokenStream2) -> Result<ItemStruct> {
 }
 
 fn expand(mut original: &ItemStruct) -> Result<TokenStream2> {
-  let component_impl = create_component_impl(&original)?;
-  let component_handle = create_component_handle(&original)?;
+  let component_impl = create_component_impl(original)?;
+  let component_handle = create_component_handle(original)?;
   Ok(quote! {
     #component_handle
     #(#component_impl)*

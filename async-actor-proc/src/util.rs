@@ -1,9 +1,12 @@
+use std::collections::HashMap;
 use std::ops::Deref;
+use std::os::linux::raw::stat;
 use convert_case::{Case, Casing};
-use proc_macro2::Ident;
-use quote::{format_ident, quote, ToTokens};
+use proc_macro2::{Ident, TokenTree};
+use quote::{format_ident, quote, TokenStreamExt, ToTokens};
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use syn::{Field, FnArg, GenericParam, Generics, ItemStruct, Pat, PatType, ReturnType, Type, WhereClause};
+use syn::{Expr, ExprClosure, Field, FnArg, GenericParam, Generics, ItemStruct, Pat, PatType, ReturnType, Stmt, Type, WhereClause};
+use syn::parse::Parser;
 use syn::punctuated::{Iter, Punctuated};
 use syn::token::Comma;
 
@@ -102,12 +105,13 @@ pub fn format_generic_usage(generics: &Generics) -> TokenStream2 {
   }
 }
 
-pub fn format_generic_usage_or_unit(generics: &Generics) -> TokenStream2 {
+pub fn format_generics_as_tuple(generics: &Generics) -> TokenStream2 {
+  let params = &generics.params.iter().collect::<Vec<_>>();
   if generics.params.is_empty() {
     quote!(::<()>)
   } else {
     quote! {
-      ::#generics
+      ::<(#(#params,)*)>
     }
   }
 }
@@ -148,7 +152,35 @@ pub fn format_injectable_struct_instantiation(original: &ItemStruct, ty: &TokenS
   let field_inject_initialization = format_field_initialization(injectable_fields, |field| {
     let field_name = &field.ident;
     let field_type = &field.ty;
-    quote!(#field_name: injector.get::<<#field_type as async_actor::inject::injectable_instance::InjectableInstance>::Inner>().await)
+    let attribute = field.attrs.iter().find_map(|attr| if attr.path.segments.last().map(|segment| segment.ident == "inject").unwrap_or(false) {
+      Some(attr)
+    } else {
+      None
+    }).unwrap();
+    let closure = if let Some(Ok(closure)) = attribute.clone().tokens.into_iter().collect::<Vec<_>>()
+      .into_iter()
+      .filter_map(|tree| if let TokenTree::Group(group) = tree {
+        Some(syn::parse2::<ExprClosure>(group.stream()))
+      } else {
+        None
+      })
+      .collect::<Vec<_>>()
+      .first()
+      .cloned()
+    {
+      closure
+    } else {
+      syn::parse2(quote! {
+        |value|value.clone()
+      }).unwrap()
+    };
+
+    quote! {
+      #field_name: {
+        let closure: fn(#field_type) -> _ = #closure;
+        closure.call((injector.get_outer::<#field_type>().await,))
+      }
+    }
   });
 
   let mut field_default_initializations = if defaults_allowed {

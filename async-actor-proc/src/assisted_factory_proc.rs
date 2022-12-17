@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{FnArg, ImplItem, ImplItemMethod, Item, ItemFn, ItemImpl, ItemStruct, ItemTrait, Pat, Path, PathSegment, PatIdent, PatType, Result, ReturnType, TraitItem, Type, TypePath, Visibility, VisPublic};
+use syn::{FnArg, ImplItem, ImplItemMethod, Item, ItemFn, ItemImpl, ItemStruct, ItemTrait, Pat, Path, PathSegment, PatIdent, PatType, Result, ReturnType, TraitBound, TraitItem, Type, TypeParamBound, TypePath, Visibility, VisPublic};
 use syn::__private::str;
 use syn::parse::Nothing;
 use syn::punctuated::Punctuated;
@@ -31,6 +31,7 @@ fn parse(args: TokenStream2, input: TokenStream2) -> Result<ItemTrait> {
 }
 
 fn expand(original: &mut ItemTrait) -> Result<TokenStream2> {
+  ensure_send_sync_required(original);
   let factory_handle = create_factory_handle(original)?;
   let factory_implementation = create_factory_implementation(original)?;
 
@@ -40,6 +41,28 @@ fn expand(original: &mut ItemTrait) -> Result<TokenStream2> {
     #factory_handle
     #factory_implementation
   })
+}
+
+fn ensure_send_sync_required(original: &mut ItemTrait) -> Result<()>{
+  let send_missing = original.supertraits.iter()
+    .filter_map(|super_trait| if let TypeParamBound::Trait(super_trait) = super_trait { Some(super_trait) } else { None })
+    .find(|super_trait| super_trait.path.segments.last().unwrap().ident == format_ident!("Send"))
+    .is_none();
+
+  let sync_missing = original.supertraits.iter()
+    .filter_map(|super_trait| if let TypeParamBound::Trait(super_trait) = super_trait { Some(super_trait) } else { None })
+    .find(|super_trait| super_trait.path.segments.last().unwrap().ident == format_ident!("Sync"))
+    .is_none();
+
+
+  if send_missing {
+    original.supertraits.push(TypeParamBound::Trait(syn::parse2(quote!(core::marker::Send))?));
+  }
+
+  if sync_missing {
+    original.supertraits.push(TypeParamBound::Trait(syn::parse2(quote!(core::marker::Sync))?));
+  }
+  Ok(())
 }
 
 fn create_factory_handle(original: &mut ItemTrait) -> Result<ItemStruct> {

@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use syn::{ItemImpl, ItemStruct, Result};
 use quote::{format_ident, quote};
 use proc_macro2::{TokenStream as TokenStream2};
-use crate::util::{find_non_injectable_fields, format_injectable_struct_instantiation, format_generic_constraints, format_generic_definition, format_generic_usage_or_unit, format_handle_name, format_instantiation_data_name, format_name};
+use crate::util::{find_non_injectable_fields, format_injectable_struct_instantiation, format_generic_constraints, format_generic_definition, format_generics_as_tuple, format_handle_name, format_instantiation_data_name, format_name};
 
 pub fn assisted_instantiable_derive(input: TokenStream) -> TokenStream {
   let input = TokenStream2::from(input);
@@ -37,11 +37,11 @@ fn create_instantiation_params(original: &ItemStruct) -> Result<ItemStruct> {
   let non_injectable_fields = find_non_injectable_fields(original);
   let generic_definition = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
-  let generic_usage_or_unit = format_generic_usage_or_unit(&original.generics);
+  let generic_tuple_usage = format_generics_as_tuple(&original.generics);
 
   syn::parse2(quote! {
       pub struct #instantiation_data_name #generic_definition #generic_constraints {
-        _phantom: core::marker::PhantomData #generic_usage_or_unit,
+        _phantom: core::marker::PhantomData #generic_tuple_usage,
         #(#non_injectable_fields)*,
       }
    })

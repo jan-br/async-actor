@@ -10,15 +10,15 @@ pub struct SendVoidPtr(pub *mut std::ffi::c_void);
 unsafe impl Send for SendVoidPtr {}
 
 pub trait HasHandleWrapper {
-  type HandleWrapper: Clone + Send + 'static;
+  type HandleWrapper: Clone + Send + Sync + 'static;
 }
 
 #[async_trait::async_trait]
 pub trait Component: HasHandleWrapper + Sized + Send + 'static {
 
-  async fn on_start(&mut self, _wrapper: Self::HandleWrapper) {}
+  async fn on_start(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
 
-  async fn on_stop(&mut self, _wrapper: Self::HandleWrapper) {}
+  async fn on_stop(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
 
   fn create_wrapper(handle: ComponentHandle<Self>) -> Self::HandleWrapper;
 
@@ -36,7 +36,7 @@ pub trait Component: HasHandleWrapper + Sized + Send + 'static {
 
 type PinnedFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
 type ComponentMessageDispatchFn<C> =
-fn(&mut C, SendVoidPtr, <C as HasHandleWrapper>::HandleWrapper) -> PinnedFuture<'_>;
+fn(&mut C, SendVoidPtr, Arc<<C as HasHandleWrapper>::HandleWrapper>) -> PinnedFuture<'_>;
 
 #[async_trait::async_trait]
 pub trait ComponentMessageHandler<R>
@@ -46,7 +46,7 @@ pub trait ComponentMessageHandler<R>
 {
   type Answer: 'static + Send;
 
-  fn dispatch(&mut self, payload: SendVoidPtr, wrapper: Self::HandleWrapper) -> PinnedFuture {
+  fn dispatch(&mut self, payload: SendVoidPtr, wrapper: Arc<Self::HandleWrapper>) -> PinnedFuture {
     let resolver =
       unsafe { Container::<Resolver<R, Self::Answer>>::from_raw(payload.0) }.into_inner();
 
@@ -57,7 +57,7 @@ pub trait ComponentMessageHandler<R>
     })
   }
 
-  async fn handle(&mut self, request: R, wrapper: Self::HandleWrapper) -> Self::Answer;
+  async fn handle(&mut self, request: R, wrapper: Arc<Self::HandleWrapper>) -> Self::Answer;
 }
 
 struct AnyComponentMessage<C>
@@ -320,7 +320,7 @@ impl<C> DefaultComponentRunner<C>
     mut receiver: UnboundedReceiver<AnyComponentMessage<C>>,
     handle: ComponentHandle<C>,
   ) {
-    let wrapper = C::create_wrapper(handle);
+    let wrapper = Arc::new(C::create_wrapper(handle));
     let c = wrapper.clone();
     component.on_start(c).await;
 
