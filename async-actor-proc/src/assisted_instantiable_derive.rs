@@ -42,7 +42,7 @@ fn create_instantiation_params(original: &ItemStruct) -> Result<ItemStruct> {
   syn::parse2(quote! {
       pub struct #instantiation_data_name #generic_definition #generic_constraints {
         _phantom: core::marker::PhantomData #generic_tuple_usage,
-        #(#non_injectable_fields)*,
+        #(#non_injectable_fields)*
       }
    })
 }
