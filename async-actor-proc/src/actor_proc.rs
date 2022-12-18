@@ -61,10 +61,6 @@ fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item
   result.push(Item::Impl(syn::parse2(quote! {
     impl #generic_definitions #handle_name #generic_constraints {
       #(#functions)*
-
-      pub fn to_unique(self) -> #handle_name_unique #generic_definitions {
-        self.into()
-      }
     }
   })?));
 

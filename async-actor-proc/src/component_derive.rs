@@ -65,6 +65,13 @@ fn create_component_handle(original: &ItemStruct) -> Result<Vec<Item>> {
         }
       }
     })?),
+    Item::Impl(syn::parse2(quote! {
+      impl #generic_definition #handle_name #generic_constraints {
+        pub fn to_unique(self) -> #handle_name_unique #generic_definition {
+          self.into()
+        }
+      }
+    })?),
     Item::Impl(syn::parse2::<ItemImpl>(quote! {
       impl #generic_definition core::convert::From<#handle_name #generic_definition> for #handle_name_unique #generic_definition #generic_constraints {
         fn from(value: #handle_name #generic_definition) -> Self {
