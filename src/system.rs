@@ -7,6 +7,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[repr(transparent)]
 pub struct SendVoidPtr(pub *mut std::ffi::c_void);
+
 unsafe impl Send for SendVoidPtr {}
 
 pub trait HasHandleWrapper {
@@ -15,7 +16,6 @@ pub trait HasHandleWrapper {
 
 #[async_trait::async_trait]
 pub trait Component: HasHandleWrapper + Sized + Send + 'static {
-
   async fn on_start(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
 
   async fn on_stop(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
@@ -34,7 +34,7 @@ pub trait Component: HasHandleWrapper + Sized + Send + 'static {
   }
 }
 
-type PinnedFuture<'a> = Pin<Box<dyn Future<Output = ()> + Send + 'a>>;
+type PinnedFuture<'a> = Pin<Box<dyn Future<Output=()> + Send + 'a>>;
 type ComponentMessageDispatchFn<C> =
 fn(&mut C, SendVoidPtr, Arc<<C as HasHandleWrapper>::HandleWrapper>) -> PinnedFuture<'_>;
 
@@ -149,8 +149,85 @@ impl<C> Clone for ComponentHandle<C>
   }
 }
 
+impl<C> From<ComponentHandle<C>> for ComponentHandleUnique<C> where C: Component {
+  fn from(value: ComponentHandle<C>) -> Self {
+    Self {
+      sender: value.sender
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct ComponentHandleUnique<C>
+  where
+    C: Component,
+{
+  sender: UnboundedSender<AnyComponentMessage<C>>,
+}
+
+impl<C> ComponentHandleUnique<C>
+  where
+    C: Component,
+{
+  fn new(sender: UnboundedSender<AnyComponentMessage<C>>) -> Self {
+    Self { sender }
+  }
+
+  fn create() -> (UnboundedReceiver<AnyComponentMessage<C>>, Self) {
+    let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+
+    (receiver, Self::new(sender))
+  }
+
+  pub async fn dispatch<M>(&self, message: M) -> <C as ComponentMessageHandler<M>>::Answer
+    where
+      C: ComponentMessageHandler<M>,
+      M: Send + 'static,
+  {
+    DispatcherImpl::dispatch_async(&self.sender, message).await
+  }
+
+  pub fn dispatch_sync_nowait<M>(&self, message: M)
+    where
+      C: ComponentMessageHandler<M>,
+      M: Send + 'static,
+  {
+    DispatcherImpl::dispatch_sync_nowait(&self.sender, message)
+  }
+
+  pub fn dispatch_sync<M>(&self, message: M) -> C::Answer
+    where
+      C: ComponentMessageHandler<M>,
+      M: Send + 'static,
+  {
+    DispatcherImpl::dispatch_sync(&self.sender, message)
+  }
+
+  pub fn make_sender<M>(&self) -> MessageSender<M, <C as ComponentMessageHandler<M>>::Answer>
+    where
+      C: ComponentMessageHandler<M>,
+      M: Send + 'static,
+  {
+    MessageSender::<M, C::Answer>::create(self.sender.clone())
+  }
+
+  pub fn make_transforming_sender<M, N, T>(
+    &self,
+    transformer: T,
+  ) -> MessageSender<M, <C as ComponentMessageHandler<N>>::Answer>
+    where
+      C: ComponentMessageHandler<N>,
+      M: Send + 'static,
+      N: Send + 'static,
+      T: Fn(M) -> N + Send + Sync + 'static,
+  {
+    MessageSender::<M, C::Answer>::create_transforming(self.sender.clone(), transformer)
+  }
+}
+
+
 type FutureMessageDispatcher<M, R> =
-Arc<dyn Fn(M) -> Pin<Box<dyn Future<Output = R> + Send>> + Send + Sync>;
+Arc<dyn Fn(M) -> Pin<Box<dyn Future<Output=R> + Send>> + Send + Sync>;
 type SyncNowaitMessageDispatcher<M> = Arc<dyn Fn(M) + Send + Sync>;
 type SyncMessageDispatcher<M, R> = Arc<dyn Fn(M) -> R + Send + Sync>;
 
@@ -164,13 +241,13 @@ pub struct MessageSender<M, R> {
 impl<M, R> MessageSender<M, R> {
   fn create<C>(sender: UnboundedSender<AnyComponentMessage<C>>) -> Self
     where
-      C: ComponentMessageHandler<M, Answer = R>,
+      C: ComponentMessageHandler<M, Answer=R>,
       M: Send + 'static,
       R: Send,
   {
     let fut_sender = sender.clone();
     let async_dispatcher =
-      move |message: M| -> Pin<Box<dyn Future<Output = C::Answer> + Send>> {
+      move |message: M| -> Pin<Box<dyn Future<Output=C::Answer> + Send>> {
         let fut_sender = fut_sender.clone();
 
         Box::pin(async move { DispatcherImpl::dispatch_async(&fut_sender, message).await })
@@ -194,7 +271,7 @@ impl<M, R> MessageSender<M, R> {
     transformer: T,
   ) -> Self
     where
-      C: ComponentMessageHandler<N, Answer = R>,
+      C: ComponentMessageHandler<N, Answer=R>,
       M: Send + 'static,
       N: Send + 'static,
       R: Send,
@@ -205,7 +282,7 @@ impl<M, R> MessageSender<M, R> {
 
     let transformer_x = transformer.clone();
     let async_dispatcher =
-      move |message: M| -> Pin<Box<dyn Future<Output = C::Answer> + Send>> {
+      move |message: M| -> Pin<Box<dyn Future<Output=C::Answer> + Send>> {
         let fut_sender = fut_sender.clone();
         let transformer = transformer_x.clone();
 

@@ -17,6 +17,9 @@ pub fn format_name(ident: &Ident) -> TokenStream2 {
 pub fn format_handle_name(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}Handle", ident))
 }
+pub fn format_handle_name_unique(ident: &Ident) -> TokenStream2 {
+  format_name(&format_ident!("{}HandleUnique", ident))
+}
 
 pub fn format_impl_name(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}Impl", ident))

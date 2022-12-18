@@ -43,6 +43,7 @@ fn expand(original: &ItemImpl) -> Result<TokenStream2> {
 
 fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item>> {
   let handle_name = format_handle_self_ty(&original.self_ty);
+  let handle_name_unique = format_ident!("{}Unique", handle_name.clone().to_string());
   let generic_definitions = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
 
@@ -59,6 +60,16 @@ fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item
 
   result.push(Item::Impl(syn::parse2(quote! {
     impl #generic_definitions #handle_name #generic_constraints {
+      #(#functions)*
+
+      pub fn to_unique(self) -> #handle_name_unique #generic_definitions {
+        self.into()
+      }
+    }
+  })?));
+
+  result.push(Item::Impl(syn::parse2(quote! {
+    impl #generic_definitions #handle_name_unique #generic_constraints {
       #(#functions)*
     }
   })?));
