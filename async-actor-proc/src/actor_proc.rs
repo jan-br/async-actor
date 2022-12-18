@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{FnArg, ImplItem, ImplItemMethod, Item, ItemImpl, ItemStruct, Result, ReturnType};
+use syn::{FnArg, ImplItem, ImplItemMethod, Item, ItemImpl, ItemStruct, Result, ReturnType, Visibility, VisPublic};
 use syn::FnArg::Receiver;
 use syn::parse::Nothing;
 use syn::punctuated::{Iter, Punctuated};
@@ -167,12 +167,13 @@ fn create_wrapper_functions(original: &ItemImpl) -> Result<Vec<ImplItemMethod>> 
     let data_name = format_data_name(&original_name, &function.sig.ident);
     let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
 
-    if let Some(Receiver(receiver)) = function.sig.inputs.first_mut(){
+    if let Some(Receiver(receiver)) = function.sig.inputs.first_mut() {
       receiver.mutability = None;
     }
     function.block = syn::parse2(quote! {{
       self.inner.dispatch(#data_name #generic_usage ::new(#parameter_names)).await
     }})?;
+    function.vis = Visibility::Public(VisPublic { pub_token: Default::default() })
   }
   Ok(functions)
 }
