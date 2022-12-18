@@ -162,8 +162,8 @@ pub fn find_default_fields(original: &ItemStruct) -> Vec<Field> {
 pub fn find_non_injectable_non_default_fields(original: &ItemStruct) -> Vec<Field> {
   original.fields.iter()
     .filter(|field| {
-      find_default_fields(original).iter().find(|other_field| other_field.ident == field.ident).is_none()
-        && find_default_fields(original).iter().find(|other_field| other_field.ident == field.ident).is_none()
+      !find_injectable_fields(original).iter().any(|other_field| other_field.ident == field.ident)
+        && !find_default_fields(original).iter().any(|other_field| other_field.ident == field.ident)
     })
     .cloned()
     .collect()
