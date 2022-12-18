@@ -104,7 +104,7 @@ fn create_function_handler(original: &ItemImpl, functions: &Vec<ImplItemMethod>)
       impl #generic_definitions async_actor::system::ComponentMessageHandler<#data_name #generic_definitions> for #original_name #generic_constraints {
         type Answer = #return_name;
 
-        async fn handle(&mut self, request: #data_name #generic_definitions, wrapper: std::sync::Arc<Self::HandleWrapper>) -> Self::Answer {
+        async fn handle(&mut self, request: #data_name #generic_definitions) -> Self::Answer {
           let #data_name #generic_usage { #parameter_names .. } = request;
           self.#function_name #generic_usage (#parameter_names)#await_maybe
         }

@@ -16,17 +16,13 @@ pub trait HasHandleWrapper {
 
 #[async_trait::async_trait]
 pub trait Component: HasHandleWrapper + Sized + Send + 'static {
-  async fn on_start(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
-
-  async fn on_stop(&mut self, _wrapper: Arc<Self::HandleWrapper>) {}
-
   fn create_wrapper(handle: ComponentHandle<Self>) -> Self::HandleWrapper;
 
   fn start(self) -> Self::HandleWrapper {
     let (receiver, handle) = ComponentHandle::create();
-    let wrapper = Self::create_wrapper(handle.clone());
+    let wrapper = Self::create_wrapper(handle);
 
-    let runner = DefaultComponentRunner::run(self, receiver, handle);
+    let runner = DefaultComponentRunner::run(self, receiver);
 
     tokio::spawn(runner);
 
@@ -36,7 +32,7 @@ pub trait Component: HasHandleWrapper + Sized + Send + 'static {
 
 type PinnedFuture<'a> = Pin<Box<dyn Future<Output=()> + Send + 'a>>;
 type ComponentMessageDispatchFn<C> =
-fn(&mut C, SendVoidPtr, Arc<<C as HasHandleWrapper>::HandleWrapper>) -> PinnedFuture<'_>;
+fn(&mut C, SendVoidPtr) -> PinnedFuture<'_>;
 
 #[async_trait::async_trait]
 pub trait ComponentMessageHandler<R>
@@ -46,18 +42,18 @@ pub trait ComponentMessageHandler<R>
 {
   type Answer: 'static + Send;
 
-  fn dispatch(&mut self, payload: SendVoidPtr, wrapper: Arc<Self::HandleWrapper>) -> PinnedFuture {
+  fn dispatch(&mut self, payload: SendVoidPtr) -> PinnedFuture {
     let resolver =
       unsafe { Container::<Resolver<R, Self::Answer>>::from_raw(payload.0) }.into_inner();
 
     Box::pin(async move {
       let (resolver, meta) = resolver.split();
-      let answer = self.handle(meta, wrapper).await;
+      let answer = self.handle(meta).await;
       resolver.resolve(answer);
     })
   }
 
-  async fn handle(&mut self, request: R, wrapper: Arc<Self::HandleWrapper>) -> Self::Answer;
+  async fn handle(&mut self, request: R) -> Self::Answer;
 }
 
 struct AnyComponentMessage<C>
@@ -152,7 +148,7 @@ impl<C> Clone for ComponentHandle<C>
 impl<C> From<ComponentHandle<C>> for ComponentHandleUnique<C> where C: Component {
   fn from(value: ComponentHandle<C>) -> Self {
     Self {
-      sender: value.sender
+      sender: value.sender.clone()
     }
   }
 }
@@ -377,8 +373,8 @@ impl DispatcherImpl {
   {
     AnyComponentMessage {
       payload: Container::new(payload).into_raw(),
-      dispatcher: |component, data, wrapper| {
-        <C as ComponentMessageHandler<M>>::dispatch(component, data, wrapper)
+      dispatcher: |component, data| {
+        <C as ComponentMessageHandler<M>>::dispatch(component, data)
       },
     }
   }
@@ -394,21 +390,14 @@ impl<C> DefaultComponentRunner<C>
 {
   async fn run(
     mut component: C,
-    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>,
-    handle: ComponentHandle<C>,
+    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>
   ) {
-    let wrapper = Arc::new(C::create_wrapper(handle));
-    let c = wrapper.clone();
-    component.on_start(c).await;
 
     while let Some(message) = receiver.recv().await {
-      let c = wrapper.clone();
       let dispatcher = message.dispatcher;
       let payload = SendVoidPtr(message.payload);
 
-      (dispatcher)(&mut component, payload, c).await;
+      (dispatcher)(&mut component, payload).await;
     }
-
-    component.on_stop(wrapper).await;
   }
 }
