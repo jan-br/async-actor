@@ -6,7 +6,7 @@ use syn::__private::str;
 use syn::parse::Nothing;
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
-use crate::util::{find_non_injectable_fields, format_data_name, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_impl_name, format_instantiation_data_name, format_name, format_return_type};
+use crate::util::{format_data_name, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_impl_name, format_instantiation_data_name, format_name, format_return_type};
 
 pub fn assisted_factory(args: TokenStream, input: TokenStream) -> TokenStream {
   let args = TokenStream2::from(args);
@@ -93,11 +93,7 @@ fn create_factory_implementation(original: &mut ItemTrait) -> Result<ItemImpl> {
       let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
 
       function.default = Some(syn::parse2(quote! {{
-        let data = #instantiation_data_name #generic_definition {
-          _phantom: core::default::Default::default(),
-          #parameter_names
-        };
-
+        let data = #instantiation_data_name #generic_definition::new(#parameter_names);
         async_actor::inject::assisted_inject::AssistedInstantiable::instantiate(self.injector.clone(), data).await
       }}).unwrap());
       functions.push(ImplItemMethod {

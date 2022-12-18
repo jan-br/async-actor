@@ -30,8 +30,9 @@ pub struct InjectorInner {
 
 #[derive(Default, Clone, Component, Injectable)]
 pub struct Injector {
-  inner: Arc<RwLock<InjectorInner>>,
+  #[inject_default] inner: Arc<RwLock<InjectorInner>>,
 }
+
 
 #[actor]
 impl Injector {

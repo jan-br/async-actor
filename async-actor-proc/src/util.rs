@@ -17,6 +17,7 @@ pub fn format_name(ident: &Ident) -> TokenStream2 {
 pub fn format_handle_name(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}Handle", ident))
 }
+
 pub fn format_handle_name_unique(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}HandleUnique", ident))
 }
@@ -126,16 +127,26 @@ pub fn format_return_type(return_type: &ReturnType) -> TokenStream2 {
   }
 }
 
-pub fn find_and_classify_injectable_fields(original: &ItemStruct) -> Vec<(Field, bool)> {
+pub fn find_and_classify_fields(original: &ItemStruct, attributes: Vec<String>) -> Vec<(Field, bool)> {
   original.fields.clone().into_iter().map(|field| {
-    let mut found_attribute = false;
-    for segment in &field.attrs.iter().flat_map(|attr| attr.path.segments.iter()).collect::<Vec<_>>() {
-      if segment.ident == "inject" {
-        found_attribute = true;
+    let mut found_attribute = vec![];
+    for attribute in &attributes {
+      for segment in &field.attrs.iter().flat_map(|attr| attr.path.segments.iter()).collect::<Vec<_>>() {
+        if segment.ident == attribute.clone() {
+          found_attribute.push(attribute.clone());
+        }
       }
     }
-    (field, found_attribute)
+    (field, found_attribute == attributes)
   }).collect::<Vec<_>>()
+}
+
+pub fn find_and_classify_injectable_fields(original: &ItemStruct) -> Vec<(Field, bool)> {
+  find_and_classify_fields(original, vec!["inject".to_string()])
+}
+
+pub fn find_and_classify_default_fields(original: &ItemStruct) -> Vec<(Field, bool)> {
+  find_and_classify_fields(original, vec!["inject_default".to_string()])
 }
 
 pub fn find_injectable_fields(original: &ItemStruct) -> Vec<Field> {
@@ -143,14 +154,24 @@ pub fn find_injectable_fields(original: &ItemStruct) -> Vec<Field> {
   classified.into_iter().filter(|(_, injectable)| *injectable).map(|(field, _)| field.clone()).collect::<Vec<_>>()
 }
 
-pub fn find_non_injectable_fields(original: &ItemStruct) -> Vec<Field> {
-  let classified = find_and_classify_injectable_fields(original);
-  classified.into_iter().filter(|(_, injectable)| !*injectable).map(|(field, _)| field.clone()).collect::<Vec<_>>()
+pub fn find_default_fields(original: &ItemStruct) -> Vec<Field> {
+  let classified = find_and_classify_default_fields(original);
+  classified.into_iter().filter(|(_, injectable)| *injectable).map(|(field, _)| field.clone()).collect::<Vec<_>>()
+}
+
+pub fn find_non_injectable_non_default_fields(original: &ItemStruct) -> Vec<Field> {
+  original.fields.iter()
+    .filter(|field| {
+      find_default_fields(original).iter().find(|other_field| other_field.ident == field.ident).is_none()
+        && find_default_fields(original).iter().find(|other_field| other_field.ident == field.ident).is_none()
+    })
+    .cloned()
+    .collect()
 }
 
 pub fn format_injectable_struct_instantiation(original: &ItemStruct, ty: &TokenStream2, defaults_allowed: bool, extra_fields: Option<Vec<TokenStream2>>) -> TokenStream2 {
   let injectable_fields = find_injectable_fields(original);
-  let non_injectable_fields = find_non_injectable_fields(original);
+  let default_fields = find_default_fields(original);
 
   let field_inject_initialization = format_field_initialization(injectable_fields, |field| {
     let field_name = &field.ident;
@@ -187,7 +208,7 @@ pub fn format_injectable_struct_instantiation(original: &ItemStruct, ty: &TokenS
   });
 
   let mut field_default_initializations = if defaults_allowed {
-    format_field_initialization(non_injectable_fields, |field| {
+    format_field_initialization(default_fields, |field| {
       let field_name = &field.ident;
       quote!(#field_name: core::default::Default::default())
     })
