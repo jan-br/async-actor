@@ -98,7 +98,7 @@ fn create_factory_implementation(original: &mut ItemTrait) -> Result<ItemImpl> {
           #parameter_names
         };
 
-        #return_type_name::instantiate(self.injector.clone(), data).await
+        async_actor::inject::assisted_inject::AssistedInstantiable::instantiate(self.injector.clone(), data).await
       }}).unwrap());
       functions.push(ImplItemMethod {
         sig: function.sig,
