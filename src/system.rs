@@ -3,6 +3,7 @@ use crate::util::resolvable::{AsyncResolvable, Resolver, SyncResolvable};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 #[repr(transparent)]
@@ -400,4 +401,8 @@ impl<C> DefaultComponentRunner<C>
       (dispatcher)(&mut component, payload).await;
     }
   }
+}
+
+pub trait EnsureNotDroppedForDuration {
+  fn ensure_not_dropped_for_duration(self: &Arc<Self>, duration: Duration);
 }
