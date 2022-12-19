@@ -41,7 +41,7 @@ impl Injector {
       C: HasHandleWrapper + ?Sized + Send + Sync + 'static,
       C::HandleWrapper: InjectableInstance<Inner=C>,
   {
-    self.get_internal::<C>(Binding::Unnamed(TypeId::of::<C::HandleWrapper>())).await
+    self.get_internal::<C>(Binding::Unnamed(TypeId::of::<C>())).await
   }
 
   pub async fn get_outer<C>(&self) -> C
@@ -49,7 +49,7 @@ impl Injector {
       C: InjectableInstance,
       C::Inner: HasHandleWrapper<HandleWrapper=C> + Send + Sync + 'static
   {
-    self.get_internal::<C::Inner>(Binding::Unnamed(TypeId::of::<C>())).await
+    self.get_internal::<C::Inner>(Binding::Unnamed(TypeId::of::<C::Inner>())).await
   }
 
 
@@ -67,7 +67,7 @@ impl Injector {
       C: InjectableInstance<Inner=C>,
       C::Inner: HasHandleWrapper<HandleWrapper=C> + Send + Sync + 'static
   {
-    self.get_internal::<C>(Binding::Named(TypeId::of::<C>(), name)).await
+    self.get_internal::<C>(Binding::Named(TypeId::of::<C::Inner>(), name)).await
   }
 }
 
