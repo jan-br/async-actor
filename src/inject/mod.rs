@@ -28,11 +28,20 @@ pub struct InjectorInner {
   mappings: HashMap<TypeId, TypeId>,
 }
 
-#[derive(Default, Clone, Component, Injectable)]
+#[derive(Default, Clone, Component)]
 pub struct Injector {
-  #[inject_default] inner: Arc<RwLock<InjectorInner>>,
+  inner: Arc<RwLock<InjectorInner>>,
 }
 
+impl InjectableInstance for InjectorHandle {
+  type Inner = Injector;
+
+  fn create_instance(injector: Injector) -> Pin<Box<dyn Future<Output=Box<Self>> + Send + Sync>> {
+    Box::pin(async move {
+      Box::new(injector.start())
+    })
+  }
+}
 
 #[actor]
 impl Injector {
