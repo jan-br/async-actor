@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use syn::{Item, ItemImpl, ItemStruct, Result};
 use quote::{format_ident, quote};
 use proc_macro2::{TokenStream as TokenStream2};
-use crate::util::{format_injectable_struct_instantiation, format_generic_constraints, format_generic_definition, format_generics_as_tuple, format_handle_name, format_instantiation_data_name, format_name, find_non_injectable_non_default_fields, format_generic_usage};
+use crate::util::{format_injectable_struct_instantiation, format_generic_constraints, format_generic_definition, format_generic_usage_as_tuple, format_handle_name, format_instantiation_data_name, format_name, find_non_injectable_non_default_fields, format_generic_usage};
 
 pub fn assisted_instantiable_derive(input: TokenStream) -> TokenStream {
   let input = TokenStream2::from(input);
@@ -38,10 +38,9 @@ fn create_instantiation_params(original: &ItemStruct) -> Result<Vec<Item>> {
   let non_injectable_non_default_field_names = non_injectable_non_default_fields.iter().map(|field|field.ident.clone()).collect::<Vec<_>>();
   let generic_definition = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
-  let generic_tuple_usage = format_generics_as_tuple(&original.generics);
+  let generic_tuple_usage = format_generic_usage_as_tuple(&original.generics);
 
 
-  println!("Meh fuck {}", quote!(#(#non_injectable_non_default_fields,)*));
   Ok(vec![
     Item::Struct(
       syn::parse2(quote! {
@@ -85,7 +84,7 @@ fn create_assisted_instantiable_implementation(original: &ItemStruct) -> Result<
     quote!(let #instantiation_data_name #generic_usage { #(#non_injectable_non_default_fields,)* .. } = data;)
   };
 
-  let x = quote! {
+  syn::parse2(quote! {
     #[async_trait::async_trait]
     impl #generic_definition async_actor::inject::assisted_inject::AssistedInstantiable<#instantiation_data_name #generic_definition> for #original_name #generic_definition #generic_constraints {
       async fn instantiate(injector: async_actor::inject::InjectorHandle, data: #instantiation_data_name #generic_definition) -> Self {
@@ -94,7 +93,5 @@ fn create_assisted_instantiable_implementation(original: &ItemStruct) -> Result<
         #instantiation
       }
     }
-  };
-  println!("{}", x);
-  syn::parse2(x)
+  })
 }

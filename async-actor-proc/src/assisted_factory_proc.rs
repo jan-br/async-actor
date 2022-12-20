@@ -6,7 +6,7 @@ use syn::__private::str;
 use syn::parse::Nothing;
 use syn::punctuated::Punctuated;
 use syn::token::Colon2;
-use crate::util::{format_data_name, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_impl_name, format_instantiation_data_name, format_name, format_return_type};
+use crate::util::{convert_return_type_to_ident, format_data_name, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_generic_usage_as_tuple, format_impl_name, format_instantiation_data_name, format_name, format_return_type};
 
 pub fn assisted_factory(args: TokenStream, input: TokenStream) -> TokenStream {
   let args = TokenStream2::from(args);
@@ -31,7 +31,7 @@ fn parse(args: TokenStream2, input: TokenStream2) -> Result<ItemTrait> {
 }
 
 fn expand(original: &mut ItemTrait) -> Result<TokenStream2> {
-  ensure_send_sync_required(original);
+  ensure_send_sync_required(original)?;
   let factory_handle = create_factory_handle(original)?;
   let factory_implementation = create_factory_implementation(original)?;
 
@@ -70,10 +70,12 @@ fn create_factory_handle(original: &mut ItemTrait) -> Result<ItemStruct> {
   let impl_name = format_impl_name(&original.ident);
   let generic_definition = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
+  let generic_tuple_usage = format_generic_usage_as_tuple(&original.generics);
 
   syn::parse2(quote! {
     #[derive(Clone, async_actor_proc::Component, async_actor_proc::Injectable)]
     pub struct #impl_name #generic_definition #generic_constraints {
+      #[inject_default] _phantom: core::marker::PhantomData #generic_tuple_usage,
       #[inject] injector: async_actor::inject::InjectorHandle
     }
   })
@@ -83,17 +85,18 @@ fn create_factory_implementation(original: &mut ItemTrait) -> Result<ItemImpl> {
   let original_name = format_name(&original.ident);
   let impl_name = format_impl_name(&original.ident);
   let generic_definition = format_generic_definition(&original.generics);
+  let generic_usage = format_generic_usage(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
 
   let mut functions: Vec<ImplItemMethod> = vec![];
   for item in original.items.clone() {
     if let TraitItem::Method(mut function) = item {
-      let return_type_name = format_return_type(&function.sig.output);
-      let instantiation_data_name = format_instantiation_data_name(&format_ident!("{}", return_type_name.clone().to_string()));
+      let return_type_name = convert_return_type_to_ident(&function.sig.output);
+      let instantiation_data_name = format_instantiation_data_name(&return_type_name);
       let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
 
       function.default = Some(syn::parse2(quote! {{
-        let data = #instantiation_data_name #generic_definition::new(#parameter_names);
+        let data = #instantiation_data_name #generic_usage::new(#parameter_names);
         async_actor::inject::assisted_inject::AssistedInstantiable::instantiate(self.injector.clone(), data).await
       }}).unwrap());
       functions.push(ImplItemMethod {
@@ -109,7 +112,7 @@ fn create_factory_implementation(original: &mut ItemTrait) -> Result<ItemImpl> {
   syn::parse2(quote! {
     #[async_actor_proc::actor]
     #[async_trait::async_trait]
-    impl #generic_definition #original_name #generic_definition for #impl_name #generic_constraints {
+    impl #generic_definition #original_name #generic_definition for #impl_name #generic_definition #generic_constraints {
       #(#functions)*
     }
   })

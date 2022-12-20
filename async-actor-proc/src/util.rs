@@ -14,6 +14,36 @@ pub fn format_name(ident: &Ident) -> TokenStream2 {
   quote!(#ident)
 }
 
+pub fn convert_return_type_to_ident(rt: &ReturnType) -> Ident {
+  // Convert the ReturnType into a TokenStream
+  let tokens = format_return_type(rt);
+
+  // Extract the first Ident from the TokenStream
+  let mut tokens = tokens.into_iter();
+  let first_token = tokens.next().unwrap();
+
+  if let proc_macro2::TokenTree::Ident(ident) = first_token {
+    // Return the Ident
+    ident
+  } else {
+    todo!()
+  }
+}
+
+fn convert_type_to_ident(ty: &Type) -> Ident {
+  // Convert the Type into a TokenStream
+  let tokens = quote! { #ty };
+
+  // Extract the first Ident from the TokenStream
+  let mut tokens = tokens.into_iter();
+  let first_token = tokens.next().unwrap();
+  if let proc_macro2::TokenTree::Ident(ident) = first_token {
+    // Return the Ident
+    ident
+  } else {
+    todo!()
+  }
+}
 pub fn format_handle_name(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}Handle", ident))
 }
@@ -57,7 +87,7 @@ pub fn format_function_parameter_names(inputs: &Iter<FnArg>) -> TokenStream2 {
 
 
 pub fn format_self_ty(ty: &Type) -> TokenStream2 {
-  quote!(#ty)
+  format_name(&convert_type_to_ident(ty))
 }
 
 pub fn format_handle_self_ty(ty: &Type) -> TokenStream2 {
@@ -65,7 +95,7 @@ pub fn format_handle_self_ty(ty: &Type) -> TokenStream2 {
   match &mut ty {
     Type::Path(path) => {
       let ident = &mut path.path.segments.first_mut().expect("No first path segment is present").ident;
-      *ident = format_ident!("{}Handle", ident);
+      *ident = format_ident!("{}Handle", ident.to_string());
     }
     _ => unimplemented!("Please open an issue, if another case implementation is needed.")
   }
@@ -109,7 +139,7 @@ pub fn format_generic_usage(generics: &Generics) -> TokenStream2 {
   }
 }
 
-pub fn format_generics_as_tuple(generics: &Generics) -> TokenStream2 {
+pub fn format_generic_usage_as_tuple(generics: &Generics) -> TokenStream2 {
   let params = &generics.params.iter().collect::<Vec<_>>();
   if generics.params.is_empty() {
     quote!(::<()>)

@@ -9,7 +9,7 @@ use syn::parse::Nothing;
 use syn::punctuated::{Iter, Punctuated};
 use syn::token::{Async, Comma};
 
-use crate::util::{filter_function_parameters, format_data_name, format_function_parameter_definitions, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_generics_as_tuple, format_handle_self_ty, format_name, format_return_type, format_self_ty, merge_generics};
+use crate::util::{filter_function_parameters, format_data_name, format_function_parameter_definitions, format_function_parameter_names, format_generic_constraints, format_generic_definition, format_generic_usage, format_generic_usage_as_tuple, format_handle_self_ty, format_name, format_return_type, format_self_ty, merge_generics};
 
 pub fn actor_proc(args: TokenStream, input: TokenStream) -> TokenStream {
   let args = TokenStream2::from(args);
@@ -86,9 +86,11 @@ fn create_function_handler(original: &ItemImpl, functions: &Vec<ImplItemMethod>)
     let return_name = format_return_type(&function.sig.output);
     let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
     let merged_generics = merge_generics(vec![function.sig.generics.clone(), original.generics.clone()]);
-    let generic_definition = format_generic_definition(&merged_generics);
-    let generic_usage = format_generic_usage(&merged_generics);
-    let generic_constraints = format_generic_constraints(&merged_generics);
+    let generic_definition = format_generic_definition(&original.generics);
+    let merged_generic_definition = format_generic_definition(&merged_generics);
+    let function_generic_usage = format_generic_usage(&function.sig.generics);
+    let merged_generic_usage = format_generic_usage(&merged_generics);
+    let merged_generic_constraints = format_generic_constraints(&merged_generics);
 
     let await_maybe = &match function.sig.asyncness {
       None => quote!(),
@@ -97,12 +99,12 @@ fn create_function_handler(original: &ItemImpl, functions: &Vec<ImplItemMethod>)
 
     result.push(Item::Impl(syn::parse2(quote! {
       #[async_trait::async_trait]
-      impl #generic_definition async_actor::system::ComponentMessageHandler<#data_name #generic_definition> for #original_name #generic_constraints {
+      impl #merged_generic_definition async_actor::system::ComponentMessageHandler<#data_name #merged_generic_definition> for #original_name #generic_definition #merged_generic_constraints {
         type Answer = #return_name;
 
-        async fn handle(&mut self, request: #data_name #generic_definition) -> Self::Answer {
-          let #data_name #generic_usage { #parameter_names .. } = request;
-          self.#function_name #generic_usage (#parameter_names)#await_maybe
+        async fn handle(&mut self, request: #data_name #merged_generic_definition) -> Self::Answer {
+          let #data_name #merged_generic_usage { #parameter_names .. } = request;
+          self.#function_name #function_generic_usage (#parameter_names)#await_maybe
         }
 
       }
@@ -120,7 +122,7 @@ fn create_wrapper_functions_data(original: &ItemImpl, functions: &Vec<ImplItemMe
     let merged_generics = merge_generics(vec![function.sig.generics.clone(), original.generics.clone()]);
     let generic_definition = format_generic_definition(&merged_generics);
     let generic_constraints = format_generic_constraints(&merged_generics);
-    let generic_tuple_usage = format_generics_as_tuple(&merged_generics);
+    let generic_tuple_usage = format_generic_usage_as_tuple(&merged_generics);
     let parameter_definitions = format_function_parameter_definitions(&function.sig.inputs.iter());
     let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
     let parameters = filter_function_parameters(&function.sig.inputs.iter());
