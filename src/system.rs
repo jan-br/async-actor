@@ -404,5 +404,5 @@ impl<C> DefaultComponentRunner<C>
 }
 
 pub trait EnsureNotDroppedForDuration {
-  fn ensure_not_dropped_for_duration(self: &Arc<Self>, duration: Duration);
+  fn ensure_not_dropped_for_duration(self: &Arc<Self>, duration: Duration) -> Pin<Box<dyn Fn() + Send + Sync>>;
 }

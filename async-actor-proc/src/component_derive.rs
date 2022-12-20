@@ -55,13 +55,16 @@ fn create_component_handle(original: &ItemStruct) -> Result<Vec<Item>> {
     })?),
     Item::Impl(syn::parse2::<ItemImpl>(quote! {
       impl #generic_definition async_actor::system::EnsureNotDroppedForDuration for #handle_name_unique #generic_definition #generic_constraints {
-        fn ensure_not_dropped_for_duration(self: &std::sync::Arc<Self>, duration: std::time::Duration) {
+        fn ensure_not_dropped_for_duration(self: &std::sync::Arc<Self>, duration: std::time::Duration) -> core::pin::Pin<std::boxed::Box<dyn Fn() + Send + Sync>>{
           let this = self.clone();
-          tokio::spawn(async move {
+          let handle = tokio::spawn(async move {
             let this = this;
             tokio::time::sleep(duration).await;
             drop(this);
           });
+          Box::pin(move ||{
+            handle.abort();
+          })
         }
       }
     })?),
