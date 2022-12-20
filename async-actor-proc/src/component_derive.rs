@@ -97,7 +97,7 @@ fn create_component_impl(original: &ItemStruct) -> Result<Vec<ItemImpl>> {
     syn::parse2(quote! {
       impl #generic_definition  async_actor::system::Component for #original_name  #generic_definition #generic_constraints {
         fn create_wrapper(inner: async_actor::system::ComponentHandle<Self>) -> Self::HandleWrapper {
-          #handle_name { inner }
+          Self::HandleWrapper { inner }
         }
       }
     })?,
