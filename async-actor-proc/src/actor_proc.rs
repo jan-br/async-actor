@@ -44,7 +44,7 @@ fn expand(original: &ItemImpl) -> Result<TokenStream2> {
 fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item>> {
   let handle_name = format_handle_self_ty(&original.self_ty);
   let handle_name_unique = format_ident!("{}Unique", handle_name.clone().to_string());
-  let generic_definitions = format_generic_definition(&original.generics);
+  let generic_definition = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
 
   let mut functions = create_wrapper_functions(original)?;
@@ -59,13 +59,13 @@ fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item
 
 
   result.push(Item::Impl(syn::parse2(quote! {
-    impl #generic_definitions #handle_name #generic_definitions #generic_constraints {
+    impl #generic_definition #handle_name #generic_definition #generic_constraints {
       #(#functions)*
     }
   })?));
 
   result.push(Item::Impl(syn::parse2(quote! {
-    impl #generic_definitions #handle_name_unique #generic_definitions #generic_constraints {
+    impl #generic_definition #handle_name_unique #generic_definition #generic_constraints {
       #(#functions)*
     }
   })?));
@@ -86,7 +86,7 @@ fn create_function_handler(original: &ItemImpl, functions: &Vec<ImplItemMethod>)
     let return_name = format_return_type(&function.sig.output);
     let parameter_names = format_function_parameter_names(&function.sig.inputs.iter());
     let merged_generics = merge_generics(vec![function.sig.generics.clone(), original.generics.clone()]);
-    let generic_definitions = format_generic_definition(&merged_generics);
+    let generic_definition = format_generic_definition(&merged_generics);
     let generic_usage = format_generic_usage(&merged_generics);
     let generic_constraints = format_generic_constraints(&merged_generics);
 
@@ -97,10 +97,10 @@ fn create_function_handler(original: &ItemImpl, functions: &Vec<ImplItemMethod>)
 
     result.push(Item::Impl(syn::parse2(quote! {
       #[async_trait::async_trait]
-      impl #generic_definitions async_actor::system::ComponentMessageHandler<#data_name #generic_definitions> for #original_name #generic_constraints {
+      impl #generic_definition async_actor::system::ComponentMessageHandler<#data_name #generic_definition> for #original_name #generic_constraints {
         type Answer = #return_name;
 
-        async fn handle(&mut self, request: #data_name #generic_definitions) -> Self::Answer {
+        async fn handle(&mut self, request: #data_name #generic_definition) -> Self::Answer {
           let #data_name #generic_usage { #parameter_names .. } = request;
           self.#function_name #generic_usage (#parameter_names)#await_maybe
         }
