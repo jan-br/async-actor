@@ -59,13 +59,13 @@ fn create_component_message_handler_impl(original: &ItemImpl) -> Result<Vec<Item
 
 
   result.push(Item::Impl(syn::parse2(quote! {
-    impl #generic_definitions #handle_name #generic_constraints {
+    impl #generic_definitions #handle_name #generic_definitions #generic_constraints {
       #(#functions)*
     }
   })?));
 
   result.push(Item::Impl(syn::parse2(quote! {
-    impl #generic_definitions #handle_name_unique #generic_constraints {
+    impl #generic_definitions #handle_name_unique #generic_definitions #generic_constraints {
       #(#functions)*
     }
   })?));
