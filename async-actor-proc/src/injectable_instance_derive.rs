@@ -35,7 +35,10 @@ fn expand(mut original: &ItemStruct) -> Result<TokenStream2> {
 
       fn create_instance(injector: async_actor::inject::Injector) -> core::pin::Pin<Box<dyn core::future::Future<Output=std::boxed::Box<Self>> + core::marker::Send + core::marker::Sync>> {
         std::boxed::Box::pin(async move {
-          Box::new(async_actor::system::Component::start(#instantiation))
+          let mut instance = #instantiation;
+          async_actor::system::PostConstruct::init(&mut instance).await;
+
+          Box::new(async_actor::system::Component::start(instance))
         })
       }
     }
