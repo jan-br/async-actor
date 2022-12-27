@@ -15,16 +15,6 @@ pub trait HasHandleWrapper {
   type HandleWrapper: Clone + Send + Sync + 'static;
 }
 
-pub trait PostConstruct {
-  fn init<'a>(&'a mut self) -> Pin<Box<dyn Future<Output=()> + Send + Sync + 'a>>;
-}
-
-default impl<T> PostConstruct for T {
-  fn init<'a>(&'a mut self) -> Pin<Box<dyn Future<Output=()> + Send + Sync + 'a>> {
-    Box::pin(async move {})
-  }
-}
-
 #[async_trait::async_trait]
 pub trait Component: HasHandleWrapper + Sized + Send + 'static {
   fn create_wrapper(handle: ComponentHandle<Self>) -> Self::HandleWrapper;
@@ -401,8 +391,9 @@ impl<C> DefaultComponentRunner<C>
 {
   async fn run(
     mut component: C,
-    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>,
+    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>
   ) {
+
     while let Some(message) = receiver.recv().await {
       let dispatcher = message.dispatcher;
       let payload = SendVoidPtr(message.payload);
