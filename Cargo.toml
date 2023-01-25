@@ -9,7 +9,7 @@ members = ["async-actor-proc"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1.23.0", features=["full"] }
+tokio = { version = "1", features=["sync", "time", "rt"], default-features=false }
 async-trait = "0.1.59"
 pin-project = "1.0.12"
 async-actor-proc = {path= "async-actor-proc" }
