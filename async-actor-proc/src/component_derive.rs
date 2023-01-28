@@ -1,9 +1,10 @@
 use proc_macro::TokenStream;
 use std::vec;
-use syn::{Item, ItemImpl, ItemStruct, Result};
+use syn::{Generics, Item, ItemImpl, ItemStruct, PredicateType, Result, Token, WhereClause, WherePredicate};
 use quote::{quote};
 use proc_macro2::{TokenStream as TokenStream2};
-use crate::util::{format_generic_constraints, format_generic_definition, format_generic_usage, format_handle_name, format_handle_name_unique, format_name};
+use syn::punctuated::Punctuated;
+use crate::util::{format_generic_constraints, format_generic_definition, format_generic_usage, format_handle_name, format_handle_name_unique, format_name, merge_generic_constraints, merge_generics};
 
 pub fn component_derive(input: TokenStream) -> TokenStream {
   let input = TokenStream2::from(input);
@@ -39,7 +40,6 @@ fn create_component_handle(original: &ItemStruct) -> Result<Vec<Item>> {
   let handle_name_unique = format_handle_name_unique(&original.ident);
   let generic_definition = format_generic_definition(&original.generics);
   let generic_constraints = format_generic_constraints(&original.generics);
-  let generic_usage = format_generic_usage(&original.generics);
 
   Ok(vec![
     Item::Struct(syn::parse2::<ItemStruct>(quote! {
@@ -53,21 +53,22 @@ fn create_component_handle(original: &ItemStruct) -> Result<Vec<Item>> {
         inner: async_actor::system::ComponentHandleUnique<#original_name #generic_definition>,
       }
     })?),
-    Item::Impl(syn::parse2::<ItemImpl>(quote! {
-      impl #generic_definition async_actor::system::EnsureNotDroppedForDuration for #handle_name_unique #generic_definition #generic_constraints {
-        fn ensure_not_dropped_for_duration(self: &std::sync::Arc<Self>, duration: std::time::Duration) -> core::pin::Pin<std::boxed::Box<dyn Fn() + Send + Sync>>{
-          let this = self.clone();
-          let handle = tokio::spawn(async move {
-            let this = this;
-            tokio::time::sleep(duration).await;
-            drop(this);
-          });
-          Box::pin(move ||{
-            handle.abort();
-          })
-        }
-      }
-    })?),
+    // Item::Impl(syn::parse2::<ItemImpl>(quote! {
+    //   impl<T> #generic_definition async_actor::system::EnsureNotDroppedForDuration for T #handle_name_unique #generic_definition #ensure_not_dropped_generic_constraints  {
+    //
+    //     fn ensure_not_dropped_for_duration(&self, duration: std::time::Duration) -> core::pin::Pin<std::boxed::Box<dyn Fn() + Send + Sync>>{
+    //       let this = self.clone();
+    //       let handle = tokio::spawn(async move {
+    //         let this = this;
+    //         tokio::time::sleep(duration).await;
+    //         drop(this);
+    //       });
+    //       Box::pin(move ||{
+    //         handle.abort();
+    //       })
+    //     }
+    //   }
+    // })?),
     Item::Impl(syn::parse2(quote! {
       impl #generic_definition #handle_name #generic_definition #generic_constraints {
         pub fn to_unique(self) -> #handle_name_unique #generic_definition {
@@ -83,7 +84,7 @@ fn create_component_handle(original: &ItemStruct) -> Result<Vec<Item>> {
           }
         }
       }
-    })?)
+    })?),
   ])
 }
 

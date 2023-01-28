@@ -1,6 +1,7 @@
 use crate::util::container::Container;
 use crate::util::resolvable::{AsyncResolvable, Resolver, SyncResolvable};
 use std::future::Future;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
@@ -391,9 +392,8 @@ impl<C> DefaultComponentRunner<C>
 {
   async fn run(
     mut component: C,
-    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>
+    mut receiver: UnboundedReceiver<AnyComponentMessage<C>>,
   ) {
-
     while let Some(message) = receiver.recv().await {
       let dispatcher = message.dispatcher;
       let payload = SendVoidPtr(message.payload);
@@ -404,5 +404,20 @@ impl<C> DefaultComponentRunner<C>
 }
 
 pub trait EnsureNotDroppedForDuration {
-  fn ensure_not_dropped_for_duration(self: &Arc<Self>, duration: Duration) -> Pin<Box<dyn Fn() + Send + Sync>>;
+  fn ensure_not_dropped_for_duration(&self, duration: Duration) -> Pin<Box<dyn Fn() + Send + Sync>>;
+}
+
+impl<T> EnsureNotDroppedForDuration for T where T: Clone + Send + Sync + 'static {
+
+fn ensure_not_dropped_for_duration(&self, duration: Duration) -> Pin<Box<dyn Fn() + Send + Sync>> {
+  let this = self.clone();
+  let handle = tokio::spawn(async move {
+    let this = this;
+    tokio::time::sleep(duration).await;
+    drop(this);
+  });
+  Box::pin(move || {
+    handle.abort();
+  })
+}
 }

@@ -5,7 +5,7 @@ use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenTree};
 use quote::{format_ident, quote, TokenStreamExt, ToTokens};
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use syn::{Expr, ExprClosure, Field, FnArg, GenericParam, Generics, ItemStruct, Pat, PatType, ReturnType, Stmt, Type, WhereClause};
+use syn::{Expr, ExprClosure, Field, FnArg, GenericParam, Generics, ItemStruct, Pat, PatType, ReturnType, Stmt, Token, Type, WhereClause, WherePredicate};
 use syn::parse::Parser;
 use syn::punctuated::{Iter, Punctuated};
 use syn::token::Comma;
@@ -44,6 +44,7 @@ fn convert_type_to_ident(ty: &Type) -> Ident {
     todo!()
   }
 }
+
 pub fn format_handle_name(ident: &Ident) -> TokenStream2 {
   format_name(&format_ident!("{}Handle", ident))
 }
@@ -125,6 +126,19 @@ pub fn merge_generics(generics: impl IntoIterator<Item=Generics>) -> Generics {
         result.where_clause.as_mut().unwrap().predicates.push(predicate.clone());
       }
     }
+  }
+  result
+}
+
+pub fn merge_generic_constraints(constraints: Vec<Vec<WherePredicate>>) -> WhereClause {
+  let mut result = WhereClause {
+    where_token: Default::default(),
+    predicates: Default::default(),
+  };
+
+
+  for predicate in constraints.into_iter().flat_map(|vec|vec) {
+    result.predicates.push(predicate);
   }
   result
 }
