@@ -89,21 +89,19 @@ impl Injector {
     self.inner.write().await.mappings.insert(TypeId::of::<T>(), TypeId::of::<I>());
   }
 
-  pub async fn bind_value<'a, C>(&'a self, value: C::HandleWrapper) -> Pin<Box<dyn Future<Output=()> + Send + Sync + 'a>>
+  pub async fn bind_value<C>(&self, value: C::HandleWrapper)
     where
       C: HasHandleWrapper + Send + Sync + 'static,
       C::HandleWrapper: InjectableInstance<Inner=C>,
   {
-    Box::pin(async move {
-      let mut inner = self.inner.write().await;
-      let lazy_cell: Arc<LazyCell<C::HandleWrapper>> = Arc::new(LazyCell::new({
-        async move {
-          value
-        }
-      }));
-      lazy_cell.get().await;
-      inner.injected_instances.insert(Binding::Unnamed(TypeId::of::<C>()), lazy_cell);
-    })
+    let mut inner = self.inner.write().await;
+    let lazy_cell: Arc<LazyCell<C::HandleWrapper>> = Arc::new(LazyCell::new({
+      async move {
+        value
+      }
+    }));
+    lazy_cell.get().await;
+    inner.injected_instances.insert(Binding::Unnamed(TypeId::of::<C>()), lazy_cell);
   }
 
   fn get_internal<'a, C>(&'a self, binding: Binding) -> Pin<Box<dyn Future<Output=C::HandleWrapper> + Send + Sync + 'a>>
