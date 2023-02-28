@@ -89,6 +89,13 @@ impl Injector {
     self.inner.write().await.mappings.insert(TypeId::of::<T>(), TypeId::of::<I>());
   }
 
+  pub async fn bind_value<'a, T>(&'a self, value: T) -> Pin<Box<dyn Future<Output=()> + Send + Sync + 'a>> where T: Send + Sync + 'static {
+    Box::pin(async move {
+      let mut inner = self.inner.write().await;
+      inner.injected_instances.insert(Binding::Unnamed(TypeId::of::<T>()), Arc::new(value));
+    })
+  }
+
   fn get_internal<'a, C>(&'a self, binding: Binding) -> Pin<Box<dyn Future<Output=C::HandleWrapper> + Send + Sync + 'a>>
     where
       C: HasHandleWrapper + ?Sized + Send + Sync + 'static,
